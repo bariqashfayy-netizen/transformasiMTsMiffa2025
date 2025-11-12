@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Latihan Mengurutkan Kata (Drag & Drop)</title>
+  <style>
+    :root{
+      --dark-green: #145214; /* skin aplikasi: hijau tua */
+      --light-green: #d8f3d8; /* latar belakang laptop: hijau muda */
+      --card: #e9ffea;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: var(--light-green);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .app{
+      width:100%;
+      max-width:900px;
+      background: linear-gradient(180deg, rgba(20,82,20,0.98), rgba(20,82,20,0.95));
+      color: #fff;
+      border-radius:16px;
+      box-shadow:0 10px 30px rgba(0,0,0,0.25);
+      padding:24px;
+    }
+    h1{margin:0 0 12px 0;font-size:20px}
+    p.lead{margin:0 0 18px 0;opacity:0.95}
+
+    .container{display:flex;gap:20px;flex-wrap:wrap}
+    .panel{background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;flex:1;min-width:260px}
+
+    .bank{
+      display:flex;flex-wrap:wrap;gap:8px;
+      min-height:80px;align-items:flex-start
+    }
+    .word{
+      background:var(--card);
+      color:var(--dark-green);
+      padding:8px 12px;border-radius:8px;font-weight:600;cursor:grab;
+      user-select:none;box-shadow:0 3px 8px rgba(0,0,0,0.12);
+    }
+    .word[draggable="true"]:active{cursor:grabbing}
+
+    textarea#dropArea{
+      width:100%;height:120px;border-radius:8px;padding:12px;font-size:16px;resize:none;
+      border:2px dashed rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:#fff;outline:none;
+    }
+    .hint{font-size:13px;opacity:0.9}
+
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    button{
+      background:var(--card);color:var(--dark-green);border:none;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer;
+      box-shadow:0 4px 10px rgba(0,0,0,0.12);
+    }
+    button.secondary{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.12)}
+
+    .feedback{margin-top:12px;padding:12px;border-radius:10px;background:rgba(0,0,0,0.12)}
+    .correct{background:rgba(0,0,0,0.12);color:#c8ffd1}
+    .wrong{background:rgba(0,0,0,0.12);color:#ffd1d1}
+
+    footer{margin-top:16px;font-size:13px;opacity:0.85}
+
+    @media (max-width:700px){
+      .container{flex-direction:column}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Latihan Mengurutkan Kata (Drag & Drop)</h1>
+    <p class="lead">Susun kata-kata bahasa Inggris agar membentuk kalimat yang benar. Tarik kata dari bank kata ke area di kanan.</p>
+
+    <div class="container">
+      <div class="panel">
+        <h3 style="margin-top:0;color:#d8ffd8">Bank Kata (seret dari sini)</h3>
+        <div id="bank" class="bank" aria-label="Bank kata"></div>
+        <div class="controls">
+          <button id="acakBtn">Acak Kata</button>
+          <button id="resetBtn" class="secondary">Reset</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0;color:#d8ffd8">Area Pengurutan (letakkan kata di sini)</h3>
+        <textarea id="dropArea" placeholder="Tarik kata ke sini..." readonly></textarea>
+        <div class="hint">Setiap kata yang ditempatkan akan hilang dari bank kata.
+        </div>
+
+        <div class="controls">
+          <button id="cekBtn">Hasil</button>
+          <button id="ulangBtn" class="secondary">Ulangi</button>
+        </div>
+
+        <div id="feedback" class="feedback" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <footer>Jawaban yang benar harus membentuk: <strong>"I -am-going-to-the-market"</strong> (pengecekan fleksibel — lihat penjelasan setelah menekan Hasil).</footer>
+  </div>
+
+  <script>
+    // Kata awal
+    const original = ["I","am","going","to","the","market"];
+    const correctVariants = [
+      "I -am-going-to-the-market",
+      "I-am-going-to-the-market",
+      "I -am -going -to -the -market",
+      "I -am-going-to-the-market",
+      "I -am-going-to-the-market" // duplicate safe
+    ];
+
+    const bankEl = document.getElementById('bank');
+    const dropArea = document.getElementById('dropArea');
+    const feedback = document.getElementById('feedback');
+
+    // Utility shuffle
+    function shuffle(arr){
+      const a = arr.slice();
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+      }
+      return a;
+    }
+
+    // Render bank words
+    function renderBank(words){
+      bankEl.innerHTML = '';
+      words.forEach(w=>{
+        const span = document.createElement('div');
+        span.className = 'word';
+        span.draggable = true;
+        span.textContent = w;
+        span.dataset.word = w;
+
+        span.addEventListener('dragstart', e=>{
+          e.dataTransfer.setData('text/plain', w);
+          // Add dragging style
+          setTimeout(()=>span.style.opacity='0.4', 0);
+        });
+        span.addEventListener('dragend', e=>{
+          span.style.opacity='1';
+        });
+
+        bankEl.appendChild(span);
+      });
+    }
+
+    // Initialize
+    let currentBank = shuffle(original);
+    renderBank(currentBank);
+
+    // Make textarea a drop target
+    dropArea.addEventListener('dragover', e=>{ e.preventDefault(); dropArea.style.borderColor='rgba(255,255,255,0.5)'; });
+    dropArea.addEventListener('dragleave', e=>{ dropArea.style.borderColor='rgba(255,255,255,0.12)'; });
+
+    dropArea.addEventListener('drop', e=>{
+      e.preventDefault();
+      dropArea.style.borderColor='rgba(255,255,255,0.12)';
+      const word = e.dataTransfer.getData('text/plain');
+      if(!word) return;
+
+      // Tambah ke textarea: jika kosong -> langsung kata, jika tidak -> tambahkan dengan '-' di depan
+      if(dropArea.value.trim().length === 0){
+        dropArea.value = word;
+      } else {
+        dropArea.value = dropArea.value + '-' + word;
+      }
+
+      // Hapus kata dari bank (kata yang pertama kali cocok)
+      const idx = currentBank.indexOf(word);
+      if(idx !== -1){
+        currentBank.splice(idx,1);
+        renderBank(currentBank);
+      }
+
+      // Pastikan area tidak bisa diedit langsung
+      dropArea.scrollTop = dropArea.scrollHeight;
+    });
+
+    // Tombol acak
+    document.getElementById('acakBtn').addEventListener('click', ()=>{
+      // gabungkan kata yang belum digunakan dengan yang sudah dikumpulkan untuk acak ulang
+      const used = parseDropAreaToArray(dropArea.value);
+      currentBank = shuffle(original.filter(w=>!used.includes(w)));
+      renderBank(currentBank);
+      feedback.textContent = 'Kata-kata diacak.';
+    });
+
+    // Tombol reset: kembalikan semua ke keadaan awal (bank diacak)
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      currentBank = shuffle(original.slice());
+      dropArea.value = '';
+      renderBank(currentBank);
+      feedback.textContent = 'Reset: semua kata kembali ke bank.';
+    });
+
+    // Tombol ulangi: kosongkan area tapi kembalikan kata ke bank
+    document.getElementById('ulangBtn').addEventListener('click', ()=>{
+      // gabungkan semua kata kembali
+      currentBank = shuffle(original.slice());
+      dropArea.value = '';
+      renderBank(currentBank);
+      feedback.textContent = 'Silakan coba lagi.';
+    });
+
+    // Tombol hasil: validasi jawaban
+    document.getElementById('cekBtn').addEventListener('click', ()=>{
+      const answer = dropArea.value.trim();
+
+      // Tampilkan jawaban normal (tanpa spasi ganda)
+      const normalized = answer.replace(/\s+/g,''); // hapus spasi
+
+      // Terima kalau match salah satu variant (kasus pengguna menambahkan/hilang spasi)
+      const ok = correctVariants.some(v=> v.replace(/\s+/g,'') === normalized);
+
+      if(ok){
+        feedback.innerHTML = '<div class="correct"><strong>Hebat jawaban anda benar</strong></div>';
+      } else {
+        feedback.innerHTML = '<div class="wrong"><strong>Maaf jawaban anda salah. Ulangi lagi</strong></div>';
+      }
+    });
+
+    // Helper: parse textarea menjadi array kata (memecah berdasarkan '-')
+    function parseDropAreaToArray(val){
+      if(!val) return [];
+      return val.split('-').map(s=>s.trim()).filter(Boolean);
+    }
+
+    // Untuk akses keyboard: klik pada kata di bank juga menyalin ke drop area (aksesibilitas)
+    bankEl.addEventListener('click', e=>{
+      const target = e.target.closest('.word');
+      if(!target) return;
+      const w = target.dataset.word;
+      // tambahkan sama seperti drop
+      if(dropArea.value.trim().length===0) dropArea.value = w; else dropArea.value += '-' + w;
+      const idx = currentBank.indexOf(w);
+      if(idx !== -1) { currentBank.splice(idx,1); renderBank(currentBank); }
+    });
+
+  </script>
+</body>
+</html>
