@@ -1,0 +1,339 @@
+<!--
+File: LKM_with_GoogleAppsScript.html
+Contains two parts in this single file for convenience:
+1) The HTML/CSS/JS to run the LKM on a website (below).
+2) The Google Apps Script (GS) code you should paste into a new Apps Script project and deploy as a web app.
+
+INSTRUCTIONS (brief):
+- Deploy the Apps Script as a web app (execute as: Me; who has access: Anyone, even anonymous OR Anyone within your domain) and copy the web app URL.
+- In the HTML below, replace GAS_WEB_APP_URL with your deployed web app URL (string variable at the top of the script).
+- In the Apps Script code, set `SPREADSHEET_ID`, `SHEET_NAME`, and `HTML_FILENAME` values.
+- Save and test: open the HTML file in a browser, fill the form, submit — the Apps Script will append a row to your Google Sheet.
+-->
+
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lembar Kerja Murid (LKM)</title>
+  <style>
+    :root{
+      --lkm-blue: #d7eeff; /* biru muda */
+      --screen-blue: #1f4e79; /* biru tua */
+      --card-radius: 12px;
+      --max-width: 1000px;
+    }
+    *{box-sizing: border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(180deg, #eef7ff 0%, #ffffff 100%);
+      display:flex; align-items:center; justify-content:center; min-height:100vh;
+      padding:20px;
+    }
+    .container{
+      width:100%; max-width:var(--max-width);
+    }
+
+    /* "Computer screen" frame */
+    .screen{
+      background:var(--screen-blue);
+      padding:18px; border-radius:18px; box-shadow: 0 8px 30px rgba(31,78,121,0.25);
+    }
+
+    .lkm{
+      background:var(--lkm-blue);
+      border-radius:12px; padding:18px; color:#033047;
+    }
+
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    header h1{margin:0; font-size:1.25rem}
+    .meta{display:flex; gap:8px; flex-wrap:wrap}
+
+    label{display:block; font-weight:600; margin-top:10px; font-size:0.9rem}
+    input[type="text"], select, textarea{
+      width:100%; padding:10px; margin-top:6px; border-radius:8px; border:1px solid rgba(0,0,0,0.12);
+      font-size:0.95rem; background:transparent; resize:vertical;
+    }
+
+    textarea{min-height:120px}
+
+    .video-wrap{width:100%; margin-bottom:12px}
+    video{width:100%; height:auto; border-radius:8px; display:block}
+
+    .questions{margin-top:14px}
+    .question{padding:12px; border-radius:8px; background:rgba(255,255,255,0.6); margin-bottom:10px}
+    .options{display:flex; flex-direction:column; gap:6px; margin-top:8px}
+    .option{display:flex; gap:8px; align-items:center}
+
+    .controls{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap}
+    button{padding:10px 14px; border-radius:10px; border:0; cursor:pointer; font-weight:700}
+    button.primary{background:#0b69a3; color:white}
+    button.secondary{background:transparent; color:#033047; border:2px solid rgba(0,0,0,0.08)}
+
+    .result{margin-top:12px; font-weight:700}
+
+    footer small{display:block; margin-top:12px; opacity:0.85}
+
+    /* Responsive tweaks */
+    @media (min-width:800px){
+      header h1{font-size:1.5rem}
+      .meta input[type="text"]{width:220px}
+      .meta{align-items:center}
+    }
+
+    @media (max-width:480px){
+      :root{--card-radius:10px}
+      header{flex-direction:column; align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="screen">
+      <div class="lkm" role="form" aria-labelledby="title">
+        <header>
+          <h1 id="title">Lembar Kerja Murid (LKM)</h1>
+          <div class="meta">
+            <input id="namaKelompok" type="text" placeholder="Nama Kelompok" aria-label="Nama Kelompok" />
+            <input id="kelas" type="text" placeholder="Kelas" aria-label="Kelas" />
+            <input id="materi" type="text" placeholder="Materi" aria-label="Materi" />
+          </div>
+        </header>
+
+        <!-- Video berada di atas teks area hasil diskusi -->
+        <div class="video-wrap">
+          <!-- contoh video local atau gdrive/youtube. Ganti src sesuai kebutuhan -->
+          <video id="lessonVideo" controls preload="metadata">
+            <!-- sample mp4 yang harus diganti saat produksi -->
+            <source src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" type="video/mp4" />
+            Video anda tidak didukung oleh browser ini.
+          </video>
+        </div>
+
+        <label for="hasilDiskusi">Hasil Diskusi (kosong saat mulai)</label>
+        <textarea id="hasilDiskusi" placeholder="Tuliskan hasil diskusi kelompok di sini..." aria-label="Hasil Diskusi"></textarea>
+
+        <div class="questions" id="questionsArea">
+          <h2 style="margin:0 0 8px 0; font-size:1rem">Kerjakan soal berikut (pilih jawaban terbaik):</h2>
+
+          <!-- 5 soal pilihan ganda -->
+          <div class="question" data-q="1">
+            <div><strong>1. Apa ibu kota negara Indonesia?</strong></div>
+            <div class="options">
+              <label class="option"><input type="radio" name="q1" value="A"> A. Jakarta</label>
+              <label class="option"><input type="radio" name="q1" value="B"> B. Surabaya</label>
+              <label class="option"><input type="radio" name="q1" value="C"> C. Bandung</label>
+              <label class="option"><input type="radio" name="q1" value="D"> D. Medan</label>
+            </div>
+          </div>
+
+          <div class="question" data-q="2">
+            <div><strong>2. 2 + 2 = ?</strong></div>
+            <div class="options">
+              <label class="option"><input type="radio" name="q2" value="A"> A. 3</label>
+              <label class="option"><input type="radio" name="q2" value="B"> B. 4</label>
+              <label class="option"><input type="radio" name="q2" value="C"> C. 22</label>
+              <label class="option"><input type="radio" name="q2" value="D"> D. 5</label>
+            </div>
+          </div>
+
+          <div class="question" data-q="3">
+            <div><strong>3. Gas rumah tangga utama di rumah disebut?</strong></div>
+            <div class="options">
+              <label class="option"><input type="radio" name="q3" value="A"> A. Helium</label>
+              <label class="option"><input type="radio" name="q3" value="B"> B. Propana</label>
+              <label class="option"><input type="radio" name="q3" value="C"> C. Nitrogen</label>
+              <label class="option"><input type="radio" name="q3" value="D"> D. Oksigen</label>
+            </div>
+          </div>
+
+          <div class="question" data-q="4">
+            <div><strong>4. Planet tempat kita hidup?</strong></div>
+            <div class="options">
+              <label class="option"><input type="radio" name="q4" value="A"> A. Mars</label>
+              <label class="option"><input type="radio" name="q4" value="B"> B. Venus</label>
+              <label class="option"><input type="radio" name="q4" value="C"> C. Bumi</label>
+              <label class="option"><input type="radio" name="q4" value="D"> D. Jupiter</label>
+            </div>
+          </div>
+
+          <div class="question" data-q="5">
+            <div><strong>5. Warna hasil campuran merah + putih biasanya disebut?</strong></div>
+            <div class="options">
+              <label class="option"><input type="radio" name="q5" value="A"> A. Merah tua</label>
+              <label class="option"><input type="radio" name="q5" value="B"> B. Pink</label>
+              <label class="option"><input type="radio" name="q5" value="C"> C. Ungu</label>
+              <label class="option"><input type="radio" name="q5" value="D"> D. Oranye</label>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="controls">
+          <button class="primary" id="btnSubmit">Kirim</button>
+          <button class="secondary" id="btnReset" type="button">Reset</button>
+        </div>
+
+        <div class="result" id="resultArea" aria-live="polite"></div>
+
+        <footer>
+          <small>Pastikan Hasil Diskusi terisi setelah menonton video. LKM responsif untuk tablet, PC, dan Android.</small>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Ubah ini ke URL Web App dari Google Apps Script (setelah di-deploy)
+    const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/REPLACE_WITH_YOUR_DEPLOYED_ID/exec';
+
+    // Kunci jawaban untuk 5 soal (sesuaikan jika mau mengubah soal)
+    const ANSWERS = { q1: 'A', q2: 'B', q3: 'B', q4: 'C', q5: 'B' };
+
+    const btnSubmit = document.getElementById('btnSubmit');
+    const btnReset = document.getElementById('btnReset');
+    const resultArea = document.getElementById('resultArea');
+
+    function collectAnswers(){
+      const data = {};
+      for(let i=1;i<=5;i++){
+        const name = 'q'+i;
+        const el = document.querySelector('input[name="'+name+'"]:checked');
+        data[name] = el ? el.value : null;
+      }
+      return data;
+    }
+
+    function scoreAnswers(ans){
+      let correct = 0, attempted = 0;
+      for(const k in ANSWERS){
+        if(ans[k] !== null){ attempted++; }
+        if(ans[k] === ANSWERS[k]){ correct++; }
+      }
+      // Score sebagai persen dari jumlah soal (bukan dari attempted) untuk konsistensi 0-100
+      const score = Math.round((correct / Object.keys(ANSWERS).length) * 100);
+      return {correct, attempted, score};
+    }
+
+    async function sendToGAS(payload){
+      try{
+        const res = await fetch(GAS_WEB_APP_URL, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        return json;
+      }catch(err){
+        console.error('Error mengirim ke GAS:', err);
+        throw err;
+      }
+    }
+
+    btnSubmit.addEventListener('click', async ()=>{
+      // Ambil nilai input
+      const namaKelompok = document.getElementById('namaKelompok').value.trim();
+      const kelas = document.getElementById('kelas').value.trim();
+      const materi = document.getElementById('materi').value.trim();
+      const hasilDiskusi = document.getElementById('hasilDiskusi').value.trim();
+
+      // Pastikan textarea dalam keadaan bersih saat mulai - requirement 12 means initial state is empty (we already ensured placeholder and no default text)
+
+      const answers = collectAnswers();
+      const grading = scoreAnswers(answers);
+
+      // Tampilkan ringkasan ke pengguna
+      resultArea.textContent = `Skor: ${grading.score} / 100  — Jawaban benar: ${grading.correct} dari ${Object.keys(ANSWERS).length}`;
+
+      // Siapkan payload untuk spreadsheet
+      const payload = {
+        timestamp: new Date().toISOString(),
+        namaKelompok, kelas, materi, hasilDiskusi,
+        answers, score: grading.score
+      };
+
+      // Kirim data ke Google Apps Script (jika URL sudah diset)
+      if(GAS_WEB_APP_URL.includes('REPLACE_WITH_YOUR_DEPLOYED_ID')){
+        resultArea.textContent += ' — Perhatian: Ganti GAS_WEB_APP_URL pada skrip dengan URL Web App Anda untuk menyimpan data.';
+        return;
+      }
+
+      try{
+        resultArea.textContent += ' — Mengirim...';
+        const resp = await sendToGAS(payload);
+        resultArea.textContent = `Skor: ${grading.score} / 100  — Tersimpan (rowId: ${resp.row || 'n/a'})`;
+      }catch(e){
+        resultArea.textContent += ' — Gagal menyimpan ke spreadsheet. Periksa console atau koneksi web app.';
+      }
+    });
+
+    btnReset.addEventListener('click', ()=>{
+      // Kosongkan semua input dan jawaban
+      document.getElementById('namaKelompok').value = '';
+      document.getElementById('kelas').value = '';
+      document.getElementById('materi').value = '';
+      document.getElementById('hasilDiskusi').value = '';
+      // Kosongkan pilihan radio
+      for(let i=1;i<=5;i++){
+        const sel = document.querySelectorAll('input[name="q'+i+'"]');
+        sel.forEach(r=>r.checked = false);
+      }
+      resultArea.textContent = '';
+      // scroll to top of LKM for convenience on small screens
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+
+    // Pastikan teks area kosong saat dimuat
+    window.addEventListener('load', ()=>{
+      document.getElementById('hasilDiskusi').value = '';
+    });
+  </script>
+
+
+<!-- =========================
+Google Apps Script (paste into a new script project)
+File: Code.gs
+========================= -->
+
+<!--
+// GANTI nilai di bawah sebelum deploy
+const SPREADSHEET_ID = 'REPLACE_WITH_YOUR_SPREADSHEET_ID';
+const SHEET_NAME = 'REPLACE_WITH_YOUR_SHEET_NAME';
+const HTML_FILENAME = 'index'; // nama file html jika Anda ingin serve html via doGet
+
+function doGet(e){
+  // Opsional: melayani file HTML jika ingin menjadikan Apps Script host
+  return HtmlService.createHtmlOutputFromFile(HTML_FILENAME);
+}
+
+function doPost(e){
+  // Menerima POST JSON dari website dan menambahkan baris ke spreadsheet
+  try{
+    const body = e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+
+    // Jika sheet kosong, tambahkan header
+    if(sheet.getLastRow() === 0){
+      sheet.appendRow(['Timestamp','Nama Kelompok','Kelas','Materi','Hasil Diskusi','Answers(JSON)','Score']);
+    }
+
+    const row = [
+      body.timestamp || new Date().toISOString(),
+      body.namaKelompok || '',
+      body.kelas || '',
+      body.materi || '',
+      body.hasilDiskusi || '',
+      JSON.stringify(body.answers || {}),
+      body.score != null ? body.score : ''
+    ];
+
+    const appended = sheet.appendRow(row);
+    // Balikkan info sederhana
+    return ContentService.createTextOutput(JSON.stringify({status:'success', row: sheet.getLastRow()})).setMimeType(ContentService.MimeType.JSON);
+  }catch(err){
+    return ContentService.createTextOutput(JSON.stringify({status:'error', message:err.message})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+-->
+
+</html>
